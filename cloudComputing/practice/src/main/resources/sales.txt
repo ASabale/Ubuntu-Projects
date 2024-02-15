@@ -1,0 +1,6 @@
+CustomerID,ProductID,Quantity
+101,P1,5
+102,P1,3
+103,P2,2
+101,P2,4
+102,P2,1

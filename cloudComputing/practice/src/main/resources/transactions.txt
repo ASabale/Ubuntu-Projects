@@ -1,0 +1,11 @@
+TransactionID,ProductID,Category,Quantity,Price
+1,P1,Electronics,2,500
+2,P2,Books,1,20
+3,P3,Electronics,1,300
+4,P1,Electronics,3,500
+5,P2,Books,2,20
+6,P4,Clothing,1,50
+7,P3,Electronics,2,300
+8,P1,Electronics,1,500
+9,P4,Clothing,2,50
+10,P2,Books,3,20

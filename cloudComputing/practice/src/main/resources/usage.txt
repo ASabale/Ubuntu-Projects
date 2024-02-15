@@ -1,0 +1,23 @@
+# run jar
+hadoop jar target/practice-1.0-SNAPSHOT.jar org.wordcount.WC_Runner /input/input.txt /output/prac
+hadoop jar target/practice-1.0-SNAPSHOT.jar org.wordcount.WordCount /input/input.txt /output/prac
+hadoop jar target/practice-1.0-SNAPSHOT.jar org.transactions.TotalSalesByCategory /input/transactions.txt /output/transactions
+hadoop jar target/practice-1.0-SNAPSHOT.jar org.matrixMultiply.Multiply /input/matrix1.txt /input/matrix2.txt /output/MatMult
+
+# clear output
+hadoop fs -rm -r /output
+
+# copy from local to hdfs
+hadoop fs -copyFromLocal src/main/resources/usage.txt /input
+hadoop fs -copyFromLocal src/main/resources/ma*.txt /input
+
+# list files in hdfs
+hadoop fs -ls /output/prac/
+hadoop fs -ls /input
+
+# list content of output files
+hadoop fs -cat /output/prac/part-00000
+hadoop fs -cat /output/sales/part-r-00000
+hadoop fs -cat /output/transactions/part-r-00000
+hadoop fs -cat /output/MatMult/part-r-00000
+
