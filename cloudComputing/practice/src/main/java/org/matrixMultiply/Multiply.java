@@ -2,12 +2,8 @@ package org.matrixMultiply;
 
 import java.io.*;
 import java.util.*;
-import org.apache.hadoop.conf.*;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.util.*;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.*;
-import org.apache.hadoop.mapreduce.lib.output.*;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.LongWritable;
@@ -131,9 +127,10 @@ public class Multiply {
         }
     }
 
-    public static class MultiplyReducer extends Reducer<Pair, MatrixCell, Pair, DoubleWritable> {
+    public static class MultiplyReducer extends Reducer<Pair, MatrixCell, Text, DoubleWritable> {
         private Map<Pair, Double> matrixAValues = new HashMap<>();
         private Map<Pair, Double> matrixBValues = new HashMap<>();
+        private Text outputKeyText = new Text();
         private DoubleWritable outputValue = new DoubleWritable();
 
         @Override
@@ -214,8 +211,10 @@ public class Multiply {
             for (int i = 0; i < rowsA; i++) {
                 for (int j = 0; j < colsB; j++) {
                     if (result[i][j]!=0.0){
-                        outputValue.set(result[i][j]);
-                        context.write(key, outputValue);
+                        double value = result[i][j];
+                        outputKeyText.set(i + "," + j);
+                        outputValue.set(value);
+                        context.write(outputKeyText, outputValue);
                     }
                 }
             }
@@ -232,13 +231,15 @@ public class Multiply {
         Job job = Job.getInstance(conf, "Matrix Multiplication");
 
         job.setJarByClass(Multiply.class);
+        job.setMapperClass(MatrixAMapper.class);
+        job.setMapperClass(MatrixBMapper.class);
+        job.setReducerClass(MultiplyReducer.class);
+        job.setMapOutputKeyClass(Pair.class);
+        job.setOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(MatrixCell.class);
+        job.setOutputValueClass(DoubleWritable.class);
         MultipleInputs.addInputPath(job, new Path(args[0]), TextInputFormat.class, MatrixAMapper.class);
         MultipleInputs.addInputPath(job, new Path(args[1]), TextInputFormat.class, MatrixBMapper.class);
-        job.setReducerClass(MultiplyReducer.class);
-        job.setOutputKeyClass(Pair.class);
-        job.setOutputValueClass(DoubleWritable.class);
-        job.setOutputFormatClass(TextOutputFormat.class);
-        job.setInputFormatClass(TextInputFormat.class);
         FileOutputFormat.setOutputPath(job, new Path(args[2]));
         System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
