@@ -13,124 +13,237 @@ import org.apache.hadoop.mapreduce.lib.output.*;
 class Pair implements WritableComparable<Pair> {
     public int i;
     public int j;
-
     Pair() {}
     Pair(int i, int j) {
         this.i = i;
         this.j = j;
     }
 
-    // Serialization
+    @Override
     public void write(DataOutput out) throws IOException {
         out.writeInt(i);
         out.writeInt(j);
     }
 
-    // Deserialization
+    @Override
     public void readFields(DataInput in) throws IOException {
         i = in.readInt();
         j = in.readInt();
     }
 
-    // Comparison for sorting
-    public int compareTo(Pair p) {
-        if (i == p.i) {
-            return Integer.compare(j, p.j);
+    @Override
+    public int compareTo(Pair o) {
+        if (i != o.i) {
+            return Integer.compare(i, o.i);
+        } else {
+            return Integer.compare(j, o.j);
         }
-        return Integer.compare(i, p.i);
     }
 
-    // Equals method
-    public boolean equals(Object o) {
-        if (!(o instanceof Pair))
-            return false;
-        Pair p = (Pair) o;
-        return i == p.i && j == p.j;
+    public int getRow(){
+        return i;
     }
 
-    // Hash code for partitioning
-    public int hashCode() {
-        return Objects.hash(i, j);
-    }
-
-    // ToString method
-    public String toString() {
-        return "(" + i + "," + j + ")";
+    public int getCol(){
+        return j;
     }
 }
 
+class MatrixCell implements Writable {
+    public char label;
+    public double value;
+
+    MatrixCell() {
+    }
+
+    MatrixCell(char label, double value) {
+        this.label = label;
+        this.value = value;
+    }
+
+    @Override
+    public void write(DataOutput out) throws IOException {
+        out.writeChar(label);
+        out.writeDouble(value);
+    }
+
+    @Override
+    public void readFields(DataInput in) throws IOException {
+        label = in.readChar();
+        value = in.readDouble();
+    }
+
+    @Override
+    public String toString() {
+        return label + ":" + value;
+    }
+}
+
+
 public class Multiply {
 
-    public static class MultiplyMapper extends Mapper<LongWritable, Text, Pair, Text> {
+    public static class MatrixAMapper extends Mapper<LongWritable, Text, Pair, MatrixCell> {
+        private Pair outputKey = new Pair();
+        private MatrixCell outputValue = new MatrixCell();
+
         @Override
-        public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
             String[] tokens = value.toString().split(",");
-            if (tokens.length == 3) {
-                int row = Integer.parseInt(tokens[0]);
-                int col = Integer.parseInt(tokens[1]);
-                String matrix = context.getInputSplit().toString().contains("input1") ? "A" : "B";
-                context.write(new Pair(row, col), new Text(matrix + "," + tokens[2]));
-            }
+            int row = Integer.parseInt(tokens[0]);
+            int col = Integer.parseInt(tokens[1]);
+            double matrixValue = Double.parseDouble(tokens[2]);
+
+            outputKey.i = row;
+            outputKey.j = col;
+            outputValue.label = 'A';
+            outputValue.value = matrixValue;
+
+            context.write(outputKey, outputValue);
         }
     }
 
-    public static class MultiplyReducer extends Reducer<Pair, Text, Pair, DoubleWritable> {
+    public static class MatrixBMapper extends Mapper<LongWritable, Text, Pair, MatrixCell> {
+        private Pair outputKey = new Pair();
+        private MatrixCell outputValue = new MatrixCell();
+
         @Override
-        public void reduce(Pair key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            Map<Integer, Double> matrixA = new HashMap<>();
-            Map<Integer, Double> matrixB = new HashMap<>();
+        protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+            String[] tokens = value.toString().split(",");
+            int row = Integer.parseInt(tokens[0]);
+            int col = Integer.parseInt(tokens[1]);
+            double matrixValue = Double.parseDouble(tokens[2]);
 
-            // Iterate over all values and populate matrixA and matrixB
-            for (Text value : values) {
-                String[] parts = value.toString().split(",");
-                String matrixLabel = parts[0];
-                double elementValue = Double.parseDouble(parts[1]);
+            outputKey.i = row;
+            outputKey.j = col;
+            outputValue.label = 'B';
+            outputValue.value = matrixValue;
 
-                // Determine which matrix the value belongs to
-                if (matrixLabel.equals("A")) {
-                    matrixA.put(key.i, elementValue); // Corrected key usage
-                } else if (matrixLabel.equals("B")) {
-                    matrixB.put(key.j, elementValue); // Corrected key usage
+            context.write(outputKey, outputValue);
+        }
+    }
+
+    public static class MultiplyReducer extends Reducer<Pair, MatrixCell, Pair, DoubleWritable> {
+        private Map<Pair, Double> matrixAValues = new HashMap<>();
+        private Map<Pair, Double> matrixBValues = new HashMap<>();
+        private DoubleWritable outputValue = new DoubleWritable();
+
+        @Override
+        protected void reduce(Pair key, Iterable<MatrixCell> values, Context context) throws IOException, InterruptedException {
+            matrixAValues.clear();
+            matrixBValues.clear();
+
+            // Iterate through the values and populate the hashmaps
+            for (MatrixCell cell : values) {
+                Pair cellKey = new Pair(key.i, key.j);
+                if (cell.label == 'A') {
+                    matrixAValues.put(cellKey, cell.value);
+                } else if (cell.label == 'B') {
+                    matrixBValues.put(cellKey, cell.value);
                 }
             }
 
-            // Debugging output to check the content of matrixA and matrixB
-            System.out.println("Matrix A for key " + key + ": " + matrixA);
-            System.out.println("Matrix B for key " + key + ": " + matrixB);
+            //find matrix dimension dynamically
+            int numRowsA = matrixAValues.keySet().stream().mapToInt(Pair::getRow).max().orElse(0) + 1;
+            int numColsA = matrixAValues.keySet().stream().mapToInt(Pair::getCol).max().orElse(0) + 1;
+            int numRowsB = matrixBValues.keySet().stream().mapToInt(Pair::getRow).max().orElse(0) + 1;
+            int numColsB = matrixBValues.keySet().stream().mapToInt(Pair::getCol).max().orElse(0) + 1;
 
-            // Calculate the result for this cell of the output matrix
-            double result = 0.0;
-            for (int k = 0; k < Math.max(matrixA.size(), matrixB.size()); k++) {
-                // Multiply corresponding elements and sum up
-                result += matrixA.getOrDefault(k, 0.0) * matrixB.getOrDefault(k, 0.0);
+            // Create 2D arrays for matrices A and B
+            double[][] matrixA;
+            double[][] matrixB;
+            if(numColsA>numRowsB){
+                matrixA = new double[numRowsA][numColsA];
+                matrixB = new double[numColsA][numColsB];
+            }
+            else if(numColsA<numRowsB){
+                matrixA = new double[numRowsA][numRowsB];
+                matrixB = new double[numRowsB][numColsB];
+            }else{
+                matrixA = new double[numRowsA][numColsA];
+                matrixB = new double[numRowsB][numColsB];
             }
 
-            context.write(key, new DoubleWritable(result));
+
+            // Initialize arrays with zeros
+            for (int i = 0; i < numRowsA; i++) {
+                for (int j = 0; j < numColsA; j++) {
+                    matrixA[i][j] = 0.0;
+                }
+            }
+
+            for (int i = 0; i < numRowsB; i++) {
+                for (int j = 0; j < numColsB; j++) {
+                    matrixB[i][j] = 0.0;
+                }
+            }
+
+            // Fill in the arrays using the values from the hashmaps
+            for (Map.Entry<Pair, Double> entry : matrixAValues.entrySet()) {
+                Pair aKey = entry.getKey();
+                matrixA[aKey.getRow()][aKey.getCol()] = entry.getValue();
+            }
+
+            for (Map.Entry<Pair, Double> entry : matrixBValues.entrySet()) {
+                Pair bKey = entry.getKey();
+                matrixB[bKey.getRow()][bKey.getCol()] = entry.getValue();
+            }
+
+            // Perform matrix multiplication
+            int rowsA = matrixA.length;
+            int colsA = matrixA[0].length;
+            int colsB = matrixB[0].length;
+            double[][] result = new double[rowsA][colsB];
+
+            for (int i = 0; i < rowsA; i++) {
+                for (int j = 0; j < colsB; j++) {
+                    for (int k = 0; k < colsA; k++) {
+                        result[i][j] += matrixA[i][k] * matrixB[k][j];
+                    }
+                }
+            }
+
+            for (int i = 0; i < rowsA; i++) {
+                for (int j = 0; j < colsB; j++) {
+                    if (result[i][j]!=0.0){
+                        outputValue.set(result[i][j]);
+                        context.write(key, outputValue);
+                    }
+                }
+            }
+
         }
     }
-
 
     public static void main(String[] args) throws Exception {
         Configuration conf = new Configuration();
         Job job = Job.getInstance(conf, "Matrix Multiplication");
 
         job.setJarByClass(Multiply.class);
-        job.setMapperClass(MultiplyMapper.class);
-        job.setReducerClass(MultiplyReducer.class);
 
+        // Set the output key and value classes
         job.setOutputKeyClass(Pair.class);
         job.setOutputValueClass(DoubleWritable.class);
 
-        job.setMapOutputKeyClass(Pair.class);
-        job.setMapOutputValueClass(Text.class);
+        // Set the output format
+        job.setOutputFormatClass(TextOutputFormat.class);
 
-        // Set the input format for the first input file (Matrix A)
-        MultipleInputs.addInputPath(job, new Path(args[0]), TextInputFormat.class, MultiplyMapper.class);
-        // Set the input format for the second input file (Matrix B)
-        MultipleInputs.addInputPath(job, new Path(args[1]), TextInputFormat.class, MultiplyMapper.class);
+        // Set input paths and mapper classes for Matrix A and Matrix B
+        MultipleInputs.addInputPath(job, new Path(args[0]), TextInputFormat.class, MatrixAMapper.class);
+        MultipleInputs.addInputPath(job, new Path(args[1]), TextInputFormat.class, MatrixBMapper.class);
 
+        // Set the Reducer class
+        job.setReducerClass(MultiplyReducer.class);
+
+        // Set the input format to read Text
+        job.setInputFormatClass(TextInputFormat.class);
+
+        // Set the output format
+        job.setOutputFormatClass(TextOutputFormat.class);
+
+        // Set the output path
         FileOutputFormat.setOutputPath(job, new Path(args[2]));
 
+        // Submit the job and wait for completion
         System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
 }

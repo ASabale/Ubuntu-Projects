@@ -3,6 +3,7 @@ hadoop jar target/practice-1.0-SNAPSHOT.jar org.wordcount.WC_Runner /input/input
 hadoop jar target/practice-1.0-SNAPSHOT.jar org.wordcount.WordCount /input/input.txt /output/prac
 hadoop jar target/practice-1.0-SNAPSHOT.jar org.transactions.TotalSalesByCategory /input/transactions.txt /output/transactions
 hadoop jar target/practice-1.0-SNAPSHOT.jar org.matrixMultiply.Multiply /input/matrix1.txt /input/matrix2.txt /output/MatMult
+~/hadoop/bin/hadoop jar target/*.jar Multiply M-matrix-small.txt N-matrix-small.txt intermediate output-simple
 
 # clear output
 hadoop fs -rm -r /output
