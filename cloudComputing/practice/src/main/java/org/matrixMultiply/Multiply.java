@@ -3,12 +3,21 @@ package org.matrixMultiply;
 import java.io.*;
 import java.util.*;
 import org.apache.hadoop.conf.*;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.util.*;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.*;
-import org.apache.hadoop.mapreduce.*;
-import org.apache.hadoop.mapreduce.lib.input.*;
 import org.apache.hadoop.mapreduce.lib.output.*;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.io.DoubleWritable;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.MultipleInputs;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 class Pair implements WritableComparable<Pair> {
     public int i;
@@ -215,35 +224,22 @@ public class Multiply {
     }
 
     public static void main(String[] args) throws Exception {
+        if (args.length != 3) {
+            System.err.println("Usage: MatrixMultiplication <inputMatrixA> <inputMatrixB> <outputPath>");
+            System.exit(1);
+        }
         Configuration conf = new Configuration();
         Job job = Job.getInstance(conf, "Matrix Multiplication");
 
         job.setJarByClass(Multiply.class);
-
-        // Set the output key and value classes
-        job.setOutputKeyClass(Pair.class);
-        job.setOutputValueClass(DoubleWritable.class);
-
-        // Set the output format
-        job.setOutputFormatClass(TextOutputFormat.class);
-
-        // Set input paths and mapper classes for Matrix A and Matrix B
         MultipleInputs.addInputPath(job, new Path(args[0]), TextInputFormat.class, MatrixAMapper.class);
         MultipleInputs.addInputPath(job, new Path(args[1]), TextInputFormat.class, MatrixBMapper.class);
-
-        // Set the Reducer class
         job.setReducerClass(MultiplyReducer.class);
-
-        // Set the input format to read Text
-        job.setInputFormatClass(TextInputFormat.class);
-
-        // Set the output format
+        job.setOutputKeyClass(Pair.class);
+        job.setOutputValueClass(DoubleWritable.class);
         job.setOutputFormatClass(TextOutputFormat.class);
-
-        // Set the output path
+        job.setInputFormatClass(TextInputFormat.class);
         FileOutputFormat.setOutputPath(job, new Path(args[2]));
-
-        // Submit the job and wait for completion
         System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
 }
