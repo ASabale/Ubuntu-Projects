@@ -52,6 +52,11 @@ class Pair implements WritableComparable<Pair> {
         }
     }
 
+    @Override
+    public String toString() {
+        return i + ","+ j;
+    }
+
     public int getRow() {
         return i;
     }
