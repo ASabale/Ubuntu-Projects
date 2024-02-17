@@ -7,7 +7,6 @@ import java.util.*;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.WritableComparable;
@@ -17,9 +16,8 @@ import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.MultipleInputs;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.hadoop.yarn.webapp.hamlet2.Hamlet;
 
-// Custom WritableComparable to represent a pair of integers
+
 class Pair implements WritableComparable<Pair> {
     public int i;
     public int j;
@@ -55,14 +53,6 @@ class Pair implements WritableComparable<Pair> {
     @Override
     public String toString() {
         return i + ","+ j;
-    }
-
-    public int getRow() {
-        return i;
-    }
-
-    public int getCol() {
-        return j;
     }
 }
 
